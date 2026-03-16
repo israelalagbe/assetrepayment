@@ -1,6 +1,6 @@
 # Asset Repayment System
 
-A backend service that processes payment notifications for mobility entrepreneurs repaying productive assets.
+A backend service that processes payment notifications for mobility entrepreneurs repaying productive assets, written in Go. When a payment notification is received, the system validates it, records the payment, and updates the customer's outstanding balance atomically. The service is designed to handle more than **100,000 payment notifications per minute** reliably, with idempotent handling of duplicate notifications.
 
 ## Design Decisions & Approach
 
