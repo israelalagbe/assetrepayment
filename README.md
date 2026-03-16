@@ -81,29 +81,151 @@ Migrations run automatically on startup.
 
 ## API
 
+Base URL: `http://localhost:8080`
+
+---
+
 ### POST /payments
 
-Process a payment notification.
+Process a payment notification from the payment provider.
 
-**Request body:**
-```json
-{
-  "customer_id": "GIGXXXXX",
-  "payment_status": "COMPLETE",
-  "transaction_amount": "10000",
-  "transaction_date": "2025-11-07 14:54:16",
-  "transaction_reference": "VPAY25110713542114478761522000"
-}
+**Request headers:**
+```
+Content-Type: application/json
 ```
 
-> `transaction_amount` is in **kobo** (integer). 10000 kobo = 100 NGN.
+**Request body:**
 
-**Responses:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `customer_id` | string | ✅ | Customer identifier (e.g. `GIGXXXXX`) |
+| `payment_status` | string | ✅ | Must be `COMPLETE` to be processed |
+| `transaction_amount` | string | ✅ | Amount in **kobo** (integer). 10000 = 100 NGN |
+| `transaction_date` | string | ✅ | Format: `YYYY-MM-DD HH:MM:SS` |
+| `transaction_reference` | string | ✅ | Unique reference from the payment provider |
+
+---
+
+#### Successful payment
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "GIGXXXXX",
+    "payment_status": "COMPLETE",
+    "transaction_amount": "10000",
+    "transaction_date": "2025-11-07 14:54:16",
+    "transaction_reference": "VPAY25110713542114478761522000"
+  }'
+```
+
+```json
+{"status":"ok"}
+```
+
+---
+
+#### Non-COMPLETE status (silently ignored)
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "GIGXXXXX",
+    "payment_status": "PENDING",
+    "transaction_amount": "10000",
+    "transaction_date": "2025-11-07 14:54:16",
+    "transaction_reference": "VPAY25110713542114478761522001"
+  }'
+```
+
+```json
+{"status":"ignored"}
+```
+
+---
+
+#### Duplicate transaction reference → 409
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "GIGXXXXX",
+    "payment_status": "COMPLETE",
+    "transaction_amount": "10000",
+    "transaction_date": "2025-11-07 14:54:16",
+    "transaction_reference": "VPAY25110713542114478761522000"
+  }'
+```
+
+```json
+{"error":"duplicate payment: transaction reference already processed"}
+```
+
+---
+
+#### Unknown customer → 404
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "GIGUNKNOWN",
+    "payment_status": "COMPLETE",
+    "transaction_amount": "10000",
+    "transaction_date": "2025-11-07 14:54:16",
+    "transaction_reference": "VPAY25110713542114478761522002"
+  }'
+```
+
+```json
+{"error":"customer not found"}
+```
+
+---
+
+#### Missing fields → 400
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{"customer_id": "GIGXXXXX"}'
+```
+
+```json
+{"error":"invalid payload: missing required fields"}
+```
+
+---
+
+#### Invalid amount → 400
+
+```bash
+curl -X POST http://localhost:8080/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "GIGXXXXX",
+    "payment_status": "COMPLETE",
+    "transaction_amount": "0",
+    "transaction_date": "2025-11-07 14:54:16",
+    "transaction_reference": "VPAY25110713542114478761522003"
+  }'
+```
+
+```json
+{"error":"invalid transaction amount: amount must be greater than zero"}
+```
+
+---
+
+**Response code summary:**
 
 | Status | Condition |
 |--------|-----------|
 | `200 {"status":"ok"}` | Payment processed successfully |
-| `200 {"status":"ignored"}` | `payment_status` is not `COMPLETE` — silently accepted |
+| `200 {"status":"ignored"}` | `payment_status` is not `COMPLETE` |
 | `400` | Missing fields or invalid amount |
 | `404` | Customer not found |
 | `409` | Duplicate `transaction_reference` |
