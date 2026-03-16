@@ -42,8 +42,6 @@ func (h *PaymentHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, domain.ErrInvalidPayload),
 		errors.Is(err, domain.ErrInvalidAmount):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-	case errors.Is(err, domain.ErrDuplicatePayment):
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, domain.ErrCustomerNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 	default:
