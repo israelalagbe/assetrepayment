@@ -60,7 +60,7 @@ func (s *paymentService) ProcessPayment(payload *domain.PaymentNotification) err
 	}
 	defer func() {
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 		}
 	}()
 

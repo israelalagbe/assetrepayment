@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 	"time"
 
+	"github.com/israelalagbe/assetrepayment/internal/config"
 	"github.com/israelalagbe/assetrepayment/internal/db"
 	"github.com/israelalagbe/assetrepayment/internal/handler"
 	"github.com/israelalagbe/assetrepayment/internal/repository"
@@ -13,10 +13,9 @@ import (
 )
 
 func main() {
-	dbPath := getEnv("DB_PATH", "./data.db")
-	port := getEnv("PORT", ":8080")
+	cfg := config.Load()
 
-	database, err := db.Open(dbPath)
+	database, err := db.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -35,22 +34,15 @@ func main() {
 	mux.HandleFunc("/payments", paymentHandler.HandlePayment)
 
 	srv := &http.Server{
-		Addr:         port,
+		Addr:         cfg.Port,
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("server listening on %s", port)
+	log.Printf("server listening on %s", cfg.Port)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
