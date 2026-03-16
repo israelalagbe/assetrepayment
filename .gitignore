@@ -1,0 +1,23 @@
+# Binaries
+assetrepayment
+*.exe
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Test cache
+*.test
