@@ -58,11 +58,13 @@ func TestHandlePayment(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "duplicate payment",
+			name:       "already processed reference returns 200",
 			method:     http.MethodPost,
 			body:       validBody,
-			serviceErr: domain.ErrDuplicatePayment,
-			wantStatus: http.StatusConflict,
+			serviceErr: nil,
+			wantStatus: http.StatusOK,
+			wantKey:    "status",
+			wantVal:    "ok",
 		},
 		{
 			name:       "non-complete status ignored",
