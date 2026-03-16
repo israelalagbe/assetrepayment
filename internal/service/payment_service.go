@@ -74,7 +74,8 @@ func (s *paymentService) ProcessPayment(payload *domain.PaymentNotification) err
 		return err
 	}
 	if exists {
-		return domain.ErrDuplicatePayment
+		// Already processed — idempotent success.
+		return nil
 	}
 
 	payment := &domain.Payment{
@@ -85,6 +86,12 @@ func (s *paymentService) ProcessPayment(payload *domain.PaymentNotification) err
 	}
 
 	if err = s.paymentRepo.InsertPayment(tx, payment); err != nil {
+		if errors.Is(err, domain.ErrDuplicatePayment) {
+			// Race condition: another request inserted the same reference concurrently.
+			_ = tx.Rollback()
+			err = nil
+			return nil
+		}
 		return err
 	}
 

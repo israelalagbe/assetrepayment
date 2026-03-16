@@ -132,7 +132,7 @@ func TestProcessPayment(t *testing.T) {
 			wantErr:      domain.ErrInvalidAmount,
 		},
 		{
-			name:         "duplicate reference rejected",
+			name:         "duplicate reference is idempotent",
 			payload:      validPayload,
 			customerRepo: okCustomerRepo,
 			paymentRepo: func() *mockPaymentRepo {
@@ -140,7 +140,7 @@ func TestProcessPayment(t *testing.T) {
 				r.existsFn = func(_ *sql.Tx, _ string) (bool, error) { return true, nil }
 				return r
 			},
-			wantErr: domain.ErrDuplicatePayment,
+			wantErr: nil,
 		},
 		{
 			name:    "unknown customer rejected",
