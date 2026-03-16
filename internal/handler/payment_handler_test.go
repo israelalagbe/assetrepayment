@@ -58,7 +58,7 @@ func TestHandlePayment(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "duplicate payment is idempotent",
+			name:       "same payment sent twice returns ok",
 			method:     http.MethodPost,
 			body:       validBody,
 			serviceErr: nil,
