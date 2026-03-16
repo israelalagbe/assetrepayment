@@ -2,6 +2,41 @@
 
 A backend service that processes payment notifications for mobility entrepreneurs repaying productive assets.
 
+## Design Decisions & Approach
+
+The core challenge was building a system that could handle **100,000 payment notifications per minute** reliably, without double-counting payments, while keeping the implementation straightforward and dependency-light.
+
+### Approach
+
+The solution is a synchronous HTTP API backed by SQLite. Each incoming notification is validated, written to the database in a single atomic transaction, and the customer's balance is updated in the same transaction — so there is no state where a payment is recorded but the balance is not updated, or vice versa.
+
+Idempotency was a deliberate design priority. Payment providers retry on timeout. Rather than returning `409` on a duplicate reference (which triggers retries), the system returns `200` — the payment was already applied, the outcome is the same. A pre-check handles the common case; the `UNIQUE` constraint on `transaction_reference` handles concurrent races.
+
+### Key decisions
+
+| Decision | Reason |
+|----------|--------|
+| SQLite with WAL mode | Single-node simplicity with concurrent-read support; measured at ~77,500 req/sec — well above the 100k/min requirement |
+| Amounts stored in kobo (int64) | Avoids floating point precision errors in financial calculations |
+| Duplicate pre-check + UNIQUE constraint | Defence in depth — pre-check is the fast path; UNIQUE constraint is the safety net for concurrent races |
+| Service layer owns the transaction | Keeps repositories composable and testable; transaction boundary is a business concern, not a data concern |
+| `net/http` only, no frameworks | Reduces dependency surface; stdlib is sufficient for a single-endpoint API |
+| Custom migration runner | Avoids pulling in a migration library for a simple ordered-file pattern |
+| Idempotent duplicate handling | Payment providers always retry — returning `200` on a seen reference stops retry loops |
+
+### Tools & Technologies
+
+| Tool | Role |
+|------|------|
+| Go 1.26 | Language |
+| `net/http` | HTTP server (stdlib only) |
+| `database/sql` | Database access (stdlib only) |
+| `modernc.org/sqlite` | Pure-Go SQLite driver (no CGO) |
+| SQLite (WAL mode) | Embedded database with concurrent-read support |
+| `wrk` | Load testing |
+
+---
+
 ## Overview
 
 Each customer is assigned an asset worth **1,000,000 NGN**, repaid over **50 weeks** via bank transfers into virtual accounts. When a payment notification arrives, the system validates it, records the payment, and updates the customer's outstanding balance atomically.
@@ -300,12 +335,4 @@ Replace `modernc.org/sqlite` with `lib/pq` or `pgx`. The repository and service 
 - `_txlock=immediate` — writer acquires the write lock at `BEGIN`, not at first write, preventing deadlocks
 - Service layer owns `BEGIN/COMMIT/ROLLBACK` — no partial updates possible
 
-## Design Decisions
 
-| Decision | Reason |
-|----------|--------|
-| Amounts stored in kobo (int64) | Avoids floating point precision errors in financial calculations |
-| Duplicate check before insert + UNIQUE constraint | Defence in depth — pre-check is the fast path; UNIQUE constraint catches concurrent races and both resolve as idempotent success |
-| Service owns the transaction | Repository methods stay composable and testable; transaction boundary is a business concern |
-| No external frameworks | `net/http` + `database/sql` are sufficient and reduce operational surface area |
-| Migration runner is custom | Avoids external dependency for a simple ordered-file pattern |
