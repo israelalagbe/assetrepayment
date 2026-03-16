@@ -58,7 +58,7 @@ func TestHandlePayment(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "same payment sent twice returns ok",
+			name:       "already processed reference returns 200",
 			method:     http.MethodPost,
 			body:       validBody,
 			serviceErr: nil,
