@@ -1,10 +1,10 @@
 package db
 
 import (
-"database/sql"
-"fmt"
+	"database/sql"
+	"fmt"
 
-_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite"
 )
 
 func Open(dsn string) (*sql.DB, error) {
