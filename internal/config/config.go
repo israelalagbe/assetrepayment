@@ -8,6 +8,7 @@ type Config struct {
 }
 
 func Load() Config {
+	loadDotEnv(".env")
 	return Config{
 		DBPath: getEnv("DB_PATH", "./data.db"),
 		Port:   getEnv("PORT", ":8080"),
