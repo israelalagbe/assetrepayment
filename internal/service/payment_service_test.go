@@ -132,7 +132,7 @@ func TestProcessPayment(t *testing.T) {
 			wantErr:      domain.ErrInvalidAmount,
 		},
 		{
-			name:         "duplicate reference is idempotent",
+			name:         "same reference sent twice succeeds",
 			payload:      validPayload,
 			customerRepo: okCustomerRepo,
 			paymentRepo: func() *mockPaymentRepo {
