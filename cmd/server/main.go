@@ -31,6 +31,7 @@ func main() {
 	paymentHandler := handler.NewPaymentHandler(paymentSvc)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", handler.HandleIndex)
 	mux.HandleFunc("/payments", paymentHandler.HandlePayment)
 
 	srv := &http.Server{
