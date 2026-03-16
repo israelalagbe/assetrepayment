@@ -146,7 +146,9 @@ curl -X POST http://localhost:8080/payments \
 
 ---
 
-#### Duplicate transaction reference → 409
+#### Duplicate transaction reference → 200 (idempotent)
+
+Sending the same `transaction_reference` a second time returns success — the payment was already recorded and the balance already updated. This is intentional: payment providers retry on timeout.
 
 ```bash
 curl -X POST http://localhost:8080/payments \
@@ -161,7 +163,7 @@ curl -X POST http://localhost:8080/payments \
 ```
 
 ```json
-{"error":"duplicate payment: transaction reference already processed"}
+{"status":"ok"}
 ```
 
 ---
@@ -224,11 +226,10 @@ curl -X POST http://localhost:8080/payments \
 
 | Status | Condition |
 |--------|-----------|
-| `200 {"status":"ok"}` | Payment processed successfully |
+| `200 {"status":"ok"}` | Payment processed successfully, or duplicate (idempotent) |
 | `200 {"status":"ignored"}` | `payment_status` is not `COMPLETE` |
 | `400` | Missing fields or invalid amount |
 | `404` | Customer not found |
-| `409` | Duplicate `transaction_reference` |
 | `405` | Wrong HTTP method |
 | `500` | Unexpected server error |
 
@@ -292,7 +293,7 @@ Replace `modernc.org/sqlite` with `lib/pq` or `pgx`. The repository and service 
 | Decision | Reason |
 |----------|--------|
 | Amounts stored in kobo (int64) | Avoids floating point precision errors in financial calculations |
-| Duplicate check before insert + UNIQUE constraint | Defence in depth — pre-check is fast; UNIQUE is the safety net under race conditions |
+| Duplicate check before insert + UNIQUE constraint | Defence in depth — pre-check is the fast path; UNIQUE constraint catches concurrent races and both resolve as idempotent success |
 | Service owns the transaction | Repository methods stay composable and testable; transaction boundary is a business concern |
 | No external frameworks | `net/http` + `database/sql` are sufficient and reduce operational surface area |
 | Migration runner is custom | Avoids external dependency for a simple ordered-file pattern |
