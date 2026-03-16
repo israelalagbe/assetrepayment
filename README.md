@@ -1,6 +1,6 @@
 # Asset Repayment System
 
-A backend service that processes payment notifications for mobility entrepreneurs repaying productive assets.
+A backend service that processes payment notifications for mobility entrepreneurs repaying productive assets, written in Go. When a payment notification is received, the system validates it, records the payment, and updates the customer's outstanding balance atomically. The service is designed to handle more than **100,000 payment notifications per minute** reliably, with idempotent handling of duplicate notifications.
 
 ## Design Decisions & Approach
 
@@ -274,13 +274,9 @@ curl -X POST http://localhost:8080/payments \
 go test ./...
 ```
 
-## Scaling to 100,000 Payments per Minute
+## Throughput
 
-100,000 payments/minute = ~1,667 requests/second.
-
-### Measured throughput (single node)
-
-Load tested with [`wrk`](https://github.com/wg/wrk) on a single machine:
+Load tested with [`wrk`](https://github.com/wg/wrk) on a single node:
 
 ```
 Thread Stats   Avg      Stdev     Max   +/- Stdev
@@ -290,49 +286,8 @@ Thread Stats   Avg      Stdev     Max   +/- Stdev
 Requests/sec: 77,511.42
 ```
 
-**~77,500 requests/second (~4.6M/minute) on a single node** — well above the 100,000/minute target.
+**~77,500 req/sec (~4.6M/minute) on a single node.** Average latency of 2.1ms with 97.65% of requests within one standard deviation.
 
-> Average latency of 2.1ms with 97.65% of requests within one standard deviation indicates a very stable response profile.
-
-### Why SQLite works here (with caveats)
-
-SQLite in WAL mode supports concurrent readers and a single writer. With `_txlock=immediate` and `_busy_timeout=5000`, writers queue rather than fail instantly. Each write transaction is small (~3 SQL statements), completing in under 1ms on local disk.
-
-### Path to 100k/minute
-
-**Option 1 — Queue-fronted workers (recommended for production):**
-
-```
-Payment Provider
-      │
-      ▼
-  HTTP Ingress (stateless, many instances)
-      │  write to queue
-      ▼
-  Kafka / Redis Streams
-      │  consume in parallel
-      ▼
-  Worker Pool (N goroutines per node)
-      │
-      ▼
-  SQLite (or Postgres for multi-writer scale)
-```
-
-The HTTP layer returns `202 Accepted` immediately. Workers process asynchronously. This decouples ingestion throughput from DB write speed.
-
-**Option 2 — Batch writes:**
-
-Buffer payments in memory for 10–50ms and flush in a single transaction. Reduces lock contention dramatically. Suitable if slight processing delay is acceptable.
-
-**Option 3 — Migrate to PostgreSQL:**
-
-Replace `modernc.org/sqlite` with `lib/pq` or `pgx`. The repository and service layers are unchanged — only `db.Open` and the DSN change. Postgres supports many concurrent writers and horizontal read replicas.
-
-### Concurrency safety in this implementation
-
-- `db.SetMaxOpenConns(1)` — serialises all writes through one connection, preventing SQLite `SQLITE_BUSY` under concurrent goroutines
-- `UNIQUE(transaction_reference)` — DB-level guard against duplicates even under race conditions
-- `_txlock=immediate` — writer acquires the write lock at `BEGIN`, not at first write, preventing deadlocks
-- Service layer owns `BEGIN/COMMIT/ROLLBACK` — no partial updates possible
+SQLite in WAL mode supports concurrent readers and a single serialised writer. With `_txlock=immediate` and `_busy_timeout=5000`, writers queue rather than fail. Each write transaction is small (~3 SQL statements). `db.SetMaxOpenConns(1)` prevents `SQLITE_BUSY` errors under concurrent goroutines, and `UNIQUE(transaction_reference)` provides a DB-level guard against duplicate payments under race conditions.
 
 
